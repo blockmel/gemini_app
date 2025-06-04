@@ -1,0 +1,19 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Gemini Prompt Tool</title>
+</head>
+<body>
+    <h1>Frage Gemini etwas</h1>
+    <form method="post">
+        <textarea name="prompt" rows="5" cols="60" placeholder="Dein Prompt hier..."></textarea><br>
+        <button type="submit">Senden</button>
+    </form>
+
+    {% if response %}
+        <h2>Antwort:</h2>
+        <pre>{{ response }}</pre>
+    {% endif %}
+</body>
+</html>
