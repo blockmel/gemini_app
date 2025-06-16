@@ -6,9 +6,14 @@
 </head>
 <body>
     <h1>Frage Gemini etwas</h1>
-    <form method="post">
-        <textarea name="prompt" rows="5" cols="60" placeholder="Dein Prompt hier..."></textarea><br>
-        <button type="submit">Senden</button>
+    <form method="post" enctype="multipart/form-data">
+        <label for="prompt">Prompt:</label>
+        <input type="text" id="prompt" name="prompt" required><br><br>
+
+        <label for="file">Bild hochladen (optional):</label>
+        <input type="file" id="file" name="file"><br><br>
+
+        <input type="submit" value="Absenden">
     </form>
 
     {% if response %}
