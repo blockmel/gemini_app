@@ -5,18 +5,25 @@ from fastapi.templating import Jinja2Templates
 import vertexai
 from vertexai.preview.generative_models import GenerativeModel, Part
 
-import os
 from google.oauth2 import service_account
+from bs4 import BeautifulSoup
+import requests
+from PIL import Image
+from io import BytesIO
+
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
+import base64
+import tempfile
 
 # Konfiguration
 PROJECT_ID = "innovationsproject"
 REGION = "us-central1"
+CREDENTIALS_FILE = "innovationsproject-9c904d36deb8.json"
 
 # GCP Auth
-credentials = service_account.Credentials.from_service_account_file(
-    "innovationsproject-9c904d36deb8.json"
-)
-
+credentials = service_account.Credentials.from_service_account_file(CREDENTIALS_FILE)
 vertexai.init(project=PROJECT_ID, location=REGION, credentials=credentials)
 
 # Modell initialisieren
@@ -26,27 +33,75 @@ model = GenerativeModel("gemini-2.0-flash-001")
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 
+def extract_css_content(soup, base_url):
+    css_code = ""
+    # Inline-Styles
+    for style in soup.find_all("style"):
+        css_code += style.get_text() + "\n"
+    # Verlinkte CSS-Dateien
+    for link in soup.find_all("link", rel="stylesheet"):
+        href = link.get("href")
+        if href:
+            if href.startswith("//"):
+                href = "https:" + href
+            elif href.startswith("/"):
+                href = base_url + href
+            try:
+                css_resp = requests.get(href)
+                if css_resp.status_code == 200:
+                    css_code += css_resp.text + "\n"
+            except:
+                continue
+    return css_code.strip()
+
+def take_screenshot(url):
+    try:
+        options = Options()
+        options.add_argument("--headless=new")
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            driver_path = os.path.join(tmpdirname, "chromedriver.exe")  # Optional, falls nötig
+            driver = webdriver.Chrome(options=options)
+            driver.set_window_size(1200, 800)
+            driver.get(url)
+            screenshot = driver.get_screenshot_as_png()
+            driver.quit()
+            return screenshot
+    except Exception as e:
+        print("Screenshot-Fehler:", e)
+        return None
+
 @app.get("/", response_class=HTMLResponse)
 def form_get(request: Request):
     return templates.TemplateResponse("form.html", {"request": request, "response": None})
 
 @app.post("/", response_class=HTMLResponse)
-async def form_post(
-    request: Request,
-    prompt: str = Form(...),
-    file: UploadFile = File(None)
-):
-    try:
-        parts = [prompt]
+async def form_post(request: Request, prompt: str = Form(...), url: str = Form(None), file: UploadFile = File(None)):
+    contents = []
 
-        if file:
+    if prompt:
+        contents.append(Part.from_text(prompt))
+
+    try:
+        if url:
+            resp = requests.get(url)
+            soup = BeautifulSoup(resp.text, "html.parser")
+            css_code = extract_css_content(soup, url)
+            if css_code:
+                contents.append(Part.from_text(f"CSS-Code der Seite:\n{css_code}"))
+            screenshot = take_screenshot(url)
+            if screenshot:
+                contents.append(Part.from_image(screenshot))
+
+        elif file:
             image_data = await file.read()
             image_part = Part.from_data(data=image_data, mime_type=file.content_type)
-            parts.append(image_part)
+            contents.append(image_part)
 
-        response = model.generate_content(parts)
-        result = response.text
+        response = model.generate_content(contents)
+        return templates.TemplateResponse("form.html", {"request": request, "response": response.text})
+
     except Exception as e:
-        result = f"Fehler: {str(e)}"
-
-    return templates.TemplateResponse("form.html", {"request": request, "response": result})
+        return templates.TemplateResponse("form.html", {"request": request, "response": f"Fehler bei der Verarbeitung: {str(e)}"})
