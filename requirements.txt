@@ -3,3 +3,9 @@ uvicorn
 google-cloud-aiplatform
 python-multipart
 jinja2
+requests
+beautifulsoup4
+pillow
+selenium
+webdriver-manager
+aiohttp
