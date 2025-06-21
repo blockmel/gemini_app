@@ -1,6 +1,7 @@
 
 from fastapi import FastAPI, Request, Form, UploadFile, File
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 import vertexai
 from vertexai.preview.generative_models import GenerativeModel, Part
@@ -14,7 +15,7 @@ from io import BytesIO
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
-import base64
+from base64 import b64encode
 import tempfile
 
 # Konfiguration
@@ -31,6 +32,7 @@ model = GenerativeModel("gemini-2.0-flash-001")
 
 # FastAPI einrichten
 app = FastAPI()
+app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
 def extract_css_content(soup, base_url):
@@ -103,7 +105,17 @@ async def form_post(request: Request, url: str = Form(None), file: UploadFile = 
             contents.append(image_part)
 
         response = model.generate_content(contents)
-        return templates.TemplateResponse("form.html", {"request": request, "response": response.text})
+
+        image_base64 = None
+        if file:
+            image_base64 = b64encode(image_data).decode("utf-8")
+
+        return templates.TemplateResponse("form.html", {
+            "request": request,
+            "response": response.text,
+            "image_data": image_base64
+        })
+        # return templates.TemplateResponse("form.html", {"request": request, "response": response.text})
 
     except Exception as e:
         return templates.TemplateResponse("form.html", {"request": request, "response": f"Fehler bei der Verarbeitung: {str(e)}"})

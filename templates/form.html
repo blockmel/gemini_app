@@ -1,26 +1,84 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Gemini Prompt Tool</title>
+    <title>KI-gestützte UX/UI-Optimierung</title>
+    <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <h1>Frage Gemini etwas</h1>
+    <h1>KI-gestützte UX/UI-Optimierung</h1>
     <form method="post" enctype="multipart/form-data">
-        <!-- <label for="prompt">Prompt (Pflichtfeld):</label>
-        <input type="text" id="prompt" name="prompt" required><br><br> -->
+        <div class="form-grid">
+            <div class="form-left">
+                <label for="file">Bild hochladen:</label>
+                <input type="file" id="file" name="file" onchange="toggleFields()">
+                <div class="button-wrapper">
+                    <button type="button" onclick="removeImage()">Bild entfernen</button>
+                </div>
+            </div>
 
-        <label for="file">Bild hochladen (optional):</label>
-        <input type="file" id="file" name="file"><br><br>
+            <div class="form-middle">
+                <p>Oder</p>
+            </div>
 
-        <label for="url">Oder Webseiten-URL (optional):</label>
-        <input type="url" id="url" name="url"><br><br>
+            <div class="form-right">
+                <label for="url">Webseiten-URL eingeben:</label>
+                <input type="url" id="url" name="url" oninput="toggleFields()">
+                <div class="button-wrapper">
+                    <button type="button" onclick="removeUrl()">URL entfernen</button>
+                </div>
+            </div>
+        </div>
 
-        <input type="submit" value="Absenden">
+        <div class="form-submit">
+            <input type="submit" id="submit" value="Absenden" disabled="true">
+        </div>
     </form>
 
-    {% if response %}
+    {% if response and response.strip() %}
         <h2>Antwort:</h2>
-        <pre>{{ response }}</pre>
+        <div class="response-container">
+            {% if image_data %}
+                <div class="response-image">
+                    <img src="data:image/png;base64,{{ image_data }}" alt="Hochgeladenes Bild">
+                </div>
+            {% endif %}
+            <div class="response-text">
+                <pre>{{ response }}</pre>
+            </div>
+        </div>
     {% endif %}
+
+
+    <script>
+        function toggleFields() {
+            const fileInput = document.getElementById('file');
+            const urlInput = document.getElementById('url');
+            const submitButton = document.getElementById('submit');
+
+            if (fileInput.files.length > 0) {
+                urlInput.disabled = true;
+                submitButton.disabled = false;
+            } else if (urlInput.value.trim() !== "") {
+                fileInput.disabled = true;
+                submitButton.disabled = false;
+            } else {
+                fileInput.disabled = false;
+                urlInput.disabled = false;
+                submitButton.disabled = true;
+            }
+        }
+
+        function removeImage() {
+            const fileInput = document.getElementById('file');
+            fileInput.value = '';
+            toggleFields();
+        }
+
+        function removeUrl() {
+            const urlInput = document.getElementById('url');
+            urlInput.value = '';
+            toggleFields();
+        }
+    </script>
 </body>
 </html>
