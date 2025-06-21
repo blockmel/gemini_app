@@ -10,6 +10,7 @@ from google.oauth2 import service_account
 from bs4 import BeautifulSoup
 import requests
 from PIL import Image
+import os
 from io import BytesIO
 
 from selenium import webdriver
@@ -59,6 +60,7 @@ def extract_css_content(soup, base_url):
 def take_screenshot(url):
     try:
         options = Options()
+        options.binary_location = "C:/Program Files/Google/Chrome/Application/chrome.exe"
         options.add_argument("--headless=new")
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
@@ -70,6 +72,7 @@ def take_screenshot(url):
             driver.get(url)
             screenshot = driver.get_screenshot_as_png()
             driver.quit()
+            print("Screenshot-Typ:", type(screenshot))
             return screenshot
     except Exception as e:
         print("Screenshot-Fehler:", e)
@@ -82,34 +85,41 @@ def form_get(request: Request):
 @app.post("/", response_class=HTMLResponse)
 async def form_post(request: Request, url: str = Form(None), file: UploadFile = File(None)):
     contents = []
+    image_data = None
 
     # if prompt:
     #     contents.append(Part.from_text(prompt))
 
     try:
         if url:
-            contents.append(Part.from_text("Bewerte das Farbkonzept bezüglich WCAG 2.0 und gebe wenn nötig konkrete Farbverbesserungsvorschläge mit Farbwerten. Gebe deine Antwort in folgendem Format: Allgemeines Feedback zur Webseite: Gebe hier in maximal 3 kurzen Sätzen ein allgemeines Feedback zum Farbkonzept.; Konkrete Probleme: Gebe hier alle konkreten Probleme im folgendem Format an. Gib jedem Problem die Überschrift Problem “X”. Setze für X die Problem-Nummer ein: Folgendes Problem liegt vor: Benenne hier das Problem.; Hier liegt das Problem: Gebe hier konkret an, wo das Problem vorliegt; Mit folgendem Farbwert kann es verbessert werden: Gebe hier sowohl den aktuellen Farbwert an als auch den Farbwert zur Verbesserung. Gebe dabei nicht mehr als einen Verbesserungsvorschlag an."))
+            contents.append(Part.from_text("Bewerte das Farbkonzept bezüglich WCAG 2.0 und gebe wenn nötig konkrete Farbverbesserungsvorschläge mit Farbwerten. Gebe deine Antwort in folgendem Format ohne weiteren Text. Mache eine Leerzeile nach dem allgemeinen Feedback und nach jedem aufgeführten Problem: Allgemeines Feedback zur Webseite: Gebe hier in maximal 3 kurzen Sätzen ein allgemeines Feedback zum Farbkonzept.; Konkrete Probleme: Gebe hier alle konkreten Probleme im folgendem Format an. Gib jedem Problem die Überschrift Problem “X”. Setze für X die Problem-Nummer ein: Folgendes Problem liegt vor: Benenne hier das Problem.; Hier liegt das Problem: Gebe hier konkret an, wo das Problem vorliegt; Mit folgendem Farbwert kann es verbessert werden: Gebe hier sowohl den aktuellen Farbwert an als auch den Farbwert zur Verbesserung. Gebe dabei nicht mehr als einen Verbesserungsvorschlag an."))
             resp = requests.get(url)
             soup = BeautifulSoup(resp.text, "html.parser")
             css_code = extract_css_content(soup, url)
             if css_code:
                 contents.append(Part.from_text(f"CSS-Code der Seite:\n{css_code}"))
+            
             screenshot = take_screenshot(url)
             if screenshot:
-                contents.append(Part.from_image(screenshot))
+                contents.append(Part.from_data(data=screenshot, mime_type="image/png"))
+                image_data = screenshot
+                print("Data-Screenshot-Typ:", type(image_data))
+
 
         elif file:
-            contents.append(Part.from_text("Analysiere das Bild und bewerte das Farbkonzept bezüglich WCAG 2.0 und gebe wenn nötig konkrete Farbverbesserungsvorschläge mit Farbwerten. Gebe deine Antwort in folgendem Format: Allgemeines Feedback zum Bild: Gebe hier in maximal 3 kurzen Sätzen ein allgemeines Feedback zum Farbkonzept.; Konkrete Probleme: Gebe hier alle konkreten Probleme im folgendem Format an. Gib jedem Problem die Überschrift Problem “X”. Setze für X die Problem-Nummer ein: Folgendes Problem liegt vor: Benenne hier das Problem.; Hier liegt das Problem: Gebe hier konkret an, wo das Problem vorliegt; Mit folgendem Farbwert kann es verbessert werden: Gebe hier sowohl den aktuellen Farbwert an als auch den Farbwert zur Verbesserung. Gebe dabei nicht mehr als einen Verbesserungsvorschlag an."))
+            contents.append(Part.from_text("Analysiere das Bild und bewerte das Farbkonzept bezüglich WCAG 2.0 und gebe wenn nötig konkrete Farbverbesserungsvorschläge mit Farbwerten. Gebe deine Antwort in folgendem Format ohne weiteren Text. Mache eine Leerzeile nach dem allgemeinen Feedback und nach jedem aufgeführten Problem: Allgemeines Feedback zum Bild: Gebe hier in maximal 3 kurzen Sätzen ein allgemeines Feedback zum Farbkonzept.; Konkrete Probleme: Gebe hier alle konkreten Probleme im folgendem Format an. Gib jedem Problem die Überschrift Problem “X”. Setze für X die Problem-Nummer ein: Folgendes Problem liegt vor: Benenne hier das Problem.; Hier liegt das Problem: Gebe hier konkret an, wo das Problem vorliegt; Mit folgendem Farbwert kann es verbessert werden: Gebe hier sowohl den aktuellen Farbwert an als auch den Farbwert zur Verbesserung. Gebe dabei nicht mehr als einen Verbesserungsvorschlag an."))
             image_data = await file.read()
+            print("Data-Image-Typ:", type(image_data))
             image_part = Part.from_data(data=image_data, mime_type=file.content_type)
             contents.append(image_part)
 
         response = model.generate_content(contents)
 
-        image_base64 = None
-        if file:
-            image_base64 = b64encode(image_data).decode("utf-8")
+        print("image-data true or false:", bool(image_data))
+        image_base64 = b64encode(image_data).decode("utf-8") if image_data else None
 
+
+        print("Bilddaten vorhanden:", bool(image_data))
         return templates.TemplateResponse("form.html", {
             "request": request,
             "response": response.text,

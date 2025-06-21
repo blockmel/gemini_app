@@ -35,18 +35,23 @@
     </form>
 
     {% if response and response.strip() %}
-        <h2>Antwort:</h2>
-        <div class="response-container">
+        <article class="response-container" aria-labelledby="antwort-überschrift">
+            <h2 id="antwort-überschrift">Antwort:</h2>
+
             {% if image_data %}
                 <div class="response-image">
-                    <img src="data:image/png;base64,{{ image_data }}" alt="Hochgeladenes Bild">
+                    <img src="data:image/png;base64,{{ image_data }}" alt="{% if file %}Hochgeladenes Bild zur Analyse{% else %}Screenshot der analysierten Webseite{% endif %}" tabindex="0">
                 </div>
             {% endif %}
-            <div class="response-text">
-                <pre>{{ response }}</pre>
+
+            <div class="response-text" role="region" aria-label="Analyseergebnis" tabindex="0">
+                {% for paragraph in response.split('\n\n') %}
+                    <p>{{ paragraph | replace('\n', '<br>') | safe }}</p>
+                {% endfor %}
             </div>
-        </div>
+        </article>
     {% endif %}
+
 
 
     <script>
