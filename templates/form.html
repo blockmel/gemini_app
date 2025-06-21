@@ -94,6 +94,13 @@
             urlInput.value = '';
             toggleFields();
         }
+
+        window.addEventListener("DOMContentLoaded", function () {
+        const response = document.querySelector('.response-container');
+        if (response) {
+            response.scrollIntoView({ behavior: 'smooth' });
+        }
+        });
     </script>
 </body>
 </html>

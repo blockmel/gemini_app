@@ -124,16 +124,6 @@ button:hover:not(:disabled) {
     color: #444444FF;
 }
 
-@media (max-width: 768px) {
-    .form-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .form-middle {
-        order: -1;
-        margin: 1em 0;
-    }
-}
 
 .response-container {
     display: flex;
@@ -164,4 +154,28 @@ button:hover:not(:disabled) {
 
 .response-text pre {
     margin: 0;
+}
+
+@media (max-width: 768px) {
+    .form-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .form-left {
+        order: 1;
+    }
+
+    .form-middle {
+        order: 2;
+        margin: 1em 0;
+    }
+
+    .form-right {
+        order: 3;
+    }
+
+    .response-image {
+        width: 100%;
+        min-width: unset;
+    }
 }
