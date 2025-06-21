@@ -3,16 +3,20 @@
 <head>
     <title>KI-gestützte UX/UI-Optimierung</title>
     <link rel="stylesheet" href="/static/style.css">
+    <link rel="icon" type="image/png" href="/static/ki_gestuetzte_ux_ui_optimierung.png">
 </head>
 <body>
-    <h1>KI-gestützte UX/UI-Optimierung</h1>
+    <div class="header">
+        <img src="/static/ki_gestuetzte_ux_ui_optimierung.png" alt="Logo KI-gestützte UX/UI-Optimierung" class="logo">
+        <h1>KI-gestützte UX/UI-Optimierung</h1>
+    </div>
     <form method="post" enctype="multipart/form-data">
         <div class="form-grid">
             <div class="form-left">
                 <label for="file">Bild hochladen:</label>
                 <input type="file" id="file" name="file" onchange="toggleFields()">
                 <div class="button-wrapper">
-                    <button type="button" onclick="removeImage()">Bild entfernen</button>
+                    <button type="button" id="removeImageButton" disabled="true" onclick="removeImage()">Bild entfernen</button>
                 </div>
             </div>
 
@@ -24,7 +28,7 @@
                 <label for="url">Webseiten-URL eingeben:</label>
                 <input type="url" id="url" name="url" oninput="toggleFields()">
                 <div class="button-wrapper">
-                    <button type="button" onclick="removeUrl()">URL entfernen</button>
+                    <button type="button" id="removeUrlButton" disabled="true" onclick="removeUrl()">URL entfernen</button>
                 </div>
             </div>
         </div>
@@ -59,17 +63,23 @@
             const fileInput = document.getElementById('file');
             const urlInput = document.getElementById('url');
             const submitButton = document.getElementById('submit');
+            const removeImageButton = document.getElementById('removeImageButton');
+            const removeUrlButton = document.getElementById('removeUrlButton');
 
             if (fileInput.files.length > 0) {
                 urlInput.disabled = true;
                 submitButton.disabled = false;
+                removeImageButton.disabled = false;
             } else if (urlInput.value.trim() !== "") {
                 fileInput.disabled = true;
                 submitButton.disabled = false;
+                removeUrlButton.disabled = false;
             } else {
                 fileInput.disabled = false;
                 urlInput.disabled = false;
                 submitButton.disabled = true;
+                removeImageButton.disabled = true;
+                removeUrlButton.disabled = true;
             }
         }
 
