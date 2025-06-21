@@ -78,14 +78,15 @@ def form_get(request: Request):
     return templates.TemplateResponse("form.html", {"request": request, "response": None})
 
 @app.post("/", response_class=HTMLResponse)
-async def form_post(request: Request, prompt: str = Form(...), url: str = Form(None), file: UploadFile = File(None)):
+async def form_post(request: Request, url: str = Form(None), file: UploadFile = File(None)):
     contents = []
 
-    if prompt:
-        contents.append(Part.from_text(prompt))
+    # if prompt:
+    #     contents.append(Part.from_text(prompt))
 
     try:
         if url:
+            contents.append(Part.from_text("Bewerte das Farbkonzept bezüglich WCAG 2.0 und gebe wenn nötig konkrete Farbverbesserungsvorschläge mit Farbwerten. Gebe deine Antwort in folgendem Format: Allgemeines Feedback zur Webseite: Gebe hier in maximal 3 kurzen Sätzen ein allgemeines Feedback zum Farbkonzept.; Konkrete Probleme: Gebe hier alle konkreten Probleme im folgendem Format an. Gib jedem Problem die Überschrift Problem “X”. Setze für X die Problem-Nummer ein: Folgendes Problem liegt vor: Benenne hier das Problem.; Hier liegt das Problem: Gebe hier konkret an, wo das Problem vorliegt; Mit folgendem Farbwert kann es verbessert werden: Gebe hier sowohl den aktuellen Farbwert an als auch den Farbwert zur Verbesserung. Gebe dabei nicht mehr als einen Verbesserungsvorschlag an."))
             resp = requests.get(url)
             soup = BeautifulSoup(resp.text, "html.parser")
             css_code = extract_css_content(soup, url)
@@ -96,6 +97,7 @@ async def form_post(request: Request, prompt: str = Form(...), url: str = Form(N
                 contents.append(Part.from_image(screenshot))
 
         elif file:
+            contents.append(Part.from_text("Analysiere das Bild und bewerte das Farbkonzept bezüglich WCAG 2.0 und gebe wenn nötig konkrete Farbverbesserungsvorschläge mit Farbwerten. Gebe deine Antwort in folgendem Format: Allgemeines Feedback zum Bild: Gebe hier in maximal 3 kurzen Sätzen ein allgemeines Feedback zum Farbkonzept.; Konkrete Probleme: Gebe hier alle konkreten Probleme im folgendem Format an. Gib jedem Problem die Überschrift Problem “X”. Setze für X die Problem-Nummer ein: Folgendes Problem liegt vor: Benenne hier das Problem.; Hier liegt das Problem: Gebe hier konkret an, wo das Problem vorliegt; Mit folgendem Farbwert kann es verbessert werden: Gebe hier sowohl den aktuellen Farbwert an als auch den Farbwert zur Verbesserung. Gebe dabei nicht mehr als einen Verbesserungsvorschlag an."))
             image_data = await file.read()
             image_part = Part.from_data(data=image_data, mime_type=file.content_type)
             contents.append(image_part)
