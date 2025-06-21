@@ -1,6 +1,7 @@
 
 from fastapi import FastAPI, Request, Form, UploadFile, File
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 import vertexai
 from vertexai.preview.generative_models import GenerativeModel, Part
@@ -9,12 +10,12 @@ from google.oauth2 import service_account
 from bs4 import BeautifulSoup
 import requests
 from PIL import Image
-from io import BytesIO
+import os
 
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
-import base64
+from base64 import b64encode
 import tempfile
 
 # Konfiguration
@@ -31,6 +32,7 @@ model = GenerativeModel("gemini-2.0-flash-001")
 
 # FastAPI einrichten
 app = FastAPI()
+app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
 def extract_css_content(soup, base_url):
@@ -62,7 +64,7 @@ def take_screenshot(url):
         options.add_argument("--disable-dev-shm-usage")
 
         with tempfile.TemporaryDirectory() as tmpdirname:
-            driver_path = os.path.join(tmpdirname, "chromedriver.exe")  # Optional, falls nötig
+            driver_path = os.path.join(tmpdirname, "chromedriver.exe")
             driver = webdriver.Chrome(options=options)
             driver.set_window_size(1200, 800)
             driver.get(url)
@@ -80,30 +82,38 @@ def form_get(request: Request):
 @app.post("/", response_class=HTMLResponse)
 async def form_post(request: Request, url: str = Form(None), file: UploadFile = File(None)):
     contents = []
-
-    # if prompt:
-    #     contents.append(Part.from_text(prompt))
+    image_data = None
 
     try:
         if url:
-            contents.append(Part.from_text("Bewerte das Farbkonzept bezüglich WCAG 2.0 und gebe wenn nötig konkrete Farbverbesserungsvorschläge mit Farbwerten. Gebe deine Antwort in folgendem Format: Allgemeines Feedback zur Webseite: Gebe hier in maximal 3 kurzen Sätzen ein allgemeines Feedback zum Farbkonzept.; Konkrete Probleme: Gebe hier alle konkreten Probleme im folgendem Format an. Gib jedem Problem die Überschrift Problem “X”. Setze für X die Problem-Nummer ein: Folgendes Problem liegt vor: Benenne hier das Problem.; Hier liegt das Problem: Gebe hier konkret an, wo das Problem vorliegt; Mit folgendem Farbwert kann es verbessert werden: Gebe hier sowohl den aktuellen Farbwert an als auch den Farbwert zur Verbesserung. Gebe dabei nicht mehr als einen Verbesserungsvorschlag an."))
+            contents.append(Part.from_text("Bewerte das Farbkonzept bezüglich WCAG 2.0 und gebe wenn nötig konkrete Farbverbesserungsvorschläge mit Farbwerten. Gebe deine Antwort in folgendem Format ohne weiteren Text. Mache eine Leerzeile nach dem allgemeinen Feedback und nach jedem aufgeführten Problem: Allgemeines Feedback zur Webseite: Gebe hier in maximal 3 kurzen Sätzen ein allgemeines Feedback zum Farbkonzept.; Konkrete Probleme: Gebe hier alle konkreten Probleme im folgendem Format an. Gib jedem Problem die Überschrift Problem “X”. Setze für X die Problem-Nummer ein: Folgendes Problem liegt vor: Benenne hier das Problem.; Hier liegt das Problem: Gebe hier konkret an, wo das Problem vorliegt; Mit folgendem Farbwert kann es verbessert werden: Gebe hier sowohl den aktuellen Farbwert an als auch den Farbwert zur Verbesserung. Gebe dabei nicht mehr als einen Verbesserungsvorschlag an."))
             resp = requests.get(url)
             soup = BeautifulSoup(resp.text, "html.parser")
             css_code = extract_css_content(soup, url)
             if css_code:
                 contents.append(Part.from_text(f"CSS-Code der Seite:\n{css_code}"))
+            
             screenshot = take_screenshot(url)
             if screenshot:
-                contents.append(Part.from_image(screenshot))
+                contents.append(Part.from_data(data=screenshot, mime_type="image/png"))
+                image_data = screenshot
+
 
         elif file:
-            contents.append(Part.from_text("Analysiere das Bild und bewerte das Farbkonzept bezüglich WCAG 2.0 und gebe wenn nötig konkrete Farbverbesserungsvorschläge mit Farbwerten. Gebe deine Antwort in folgendem Format: Allgemeines Feedback zum Bild: Gebe hier in maximal 3 kurzen Sätzen ein allgemeines Feedback zum Farbkonzept.; Konkrete Probleme: Gebe hier alle konkreten Probleme im folgendem Format an. Gib jedem Problem die Überschrift Problem “X”. Setze für X die Problem-Nummer ein: Folgendes Problem liegt vor: Benenne hier das Problem.; Hier liegt das Problem: Gebe hier konkret an, wo das Problem vorliegt; Mit folgendem Farbwert kann es verbessert werden: Gebe hier sowohl den aktuellen Farbwert an als auch den Farbwert zur Verbesserung. Gebe dabei nicht mehr als einen Verbesserungsvorschlag an."))
+            contents.append(Part.from_text("Analysiere das Bild und bewerte das Farbkonzept bezüglich WCAG 2.0 und gebe wenn nötig konkrete Farbverbesserungsvorschläge mit Farbwerten. Gebe deine Antwort in folgendem Format ohne weiteren Text. Mache eine Leerzeile nach dem allgemeinen Feedback und nach jedem aufgeführten Problem: Allgemeines Feedback zum Bild: Gebe hier in maximal 3 kurzen Sätzen ein allgemeines Feedback zum Farbkonzept.; Konkrete Probleme: Gebe hier alle konkreten Probleme im folgendem Format an. Gib jedem Problem die Überschrift Problem “X”. Setze für X die Problem-Nummer ein: Folgendes Problem liegt vor: Benenne hier das Problem.; Hier liegt das Problem: Gebe hier konkret an, wo das Problem vorliegt; Mit folgendem Farbwert kann es verbessert werden: Gebe hier sowohl den aktuellen Farbwert an als auch den Farbwert zur Verbesserung. Gebe dabei nicht mehr als einen Verbesserungsvorschlag an."))
             image_data = await file.read()
             image_part = Part.from_data(data=image_data, mime_type=file.content_type)
             contents.append(image_part)
 
         response = model.generate_content(contents)
-        return templates.TemplateResponse("form.html", {"request": request, "response": response.text})
+
+        image_base64 = b64encode(image_data).decode("utf-8") if image_data else None
+
+        return templates.TemplateResponse("form.html", {
+            "request": request,
+            "response": response.text,
+            "image_data": image_base64
+        })
 
     except Exception as e:
         return templates.TemplateResponse("form.html", {"request": request, "response": f"Fehler bei der Verarbeitung: {str(e)}"})

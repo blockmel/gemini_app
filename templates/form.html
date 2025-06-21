@@ -1,26 +1,106 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Gemini Prompt Tool</title>
+    <title>KI-gestützte UX/UI-Optimierung</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="icon" type="image/png" href="/static/ki_gestuetzte_ux_ui_optimierung.png">
 </head>
 <body>
-    <h1>Frage Gemini etwas</h1>
+    <div class="header">
+        <img src="/static/ki_gestuetzte_ux_ui_optimierung.png" alt="Logo KI-gestützte UX/UI-Optimierung" class="logo">
+        <h1>KI-gestützte UX/UI-Optimierung</h1>
+    </div>
     <form method="post" enctype="multipart/form-data">
-        <!-- <label for="prompt">Prompt (Pflichtfeld):</label>
-        <input type="text" id="prompt" name="prompt" required><br><br> -->
+        <div class="form-grid">
+            <div class="form-left">
+                <label for="file">Bild hochladen:</label>
+                <input type="file" id="file" name="file" onchange="toggleFields()">
+                <div class="button-wrapper">
+                    <button type="button" id="removeImageButton" disabled="true" onclick="removeImage()">Bild entfernen</button>
+                </div>
+            </div>
 
-        <label for="file">Bild hochladen (optional):</label>
-        <input type="file" id="file" name="file"><br><br>
+            <div class="form-middle">
+                <p>Oder</p>
+            </div>
 
-        <label for="url">Oder Webseiten-URL (optional):</label>
-        <input type="url" id="url" name="url"><br><br>
+            <div class="form-right">
+                <label for="url">Webseiten-URL eingeben:</label>
+                <input type="url" id="url" name="url" oninput="toggleFields()">
+                <div class="button-wrapper">
+                    <button type="button" id="removeUrlButton" disabled="true" onclick="removeUrl()">URL entfernen</button>
+                </div>
+            </div>
+        </div>
 
-        <input type="submit" value="Absenden">
+        <div class="form-submit">
+            <input type="submit" id="submit" value="Absenden" disabled="true">
+        </div>
     </form>
 
-    {% if response %}
-        <h2>Antwort:</h2>
-        <pre>{{ response }}</pre>
+    {% if response and response.strip() %}
+        <article class="response-container" aria-labelledby="antwort-überschrift">
+            <h2 id="antwort-überschrift">Antwort:</h2>
+
+            {% if image_data %}
+                <div class="response-image">
+                    <img src="data:image/png;base64,{{ image_data }}" alt="{% if file %}Hochgeladenes Bild zur Analyse{% else %}Screenshot der analysierten Webseite{% endif %}" tabindex="0">
+                </div>
+            {% endif %}
+
+            <div class="response-text" role="region" aria-label="Analyseergebnis" tabindex="0">
+                {% for paragraph in response.split('\n\n') %}
+                    <p>{{ paragraph | replace('\n', '<br>') | safe }}</p>
+                {% endfor %}
+            </div>
+        </article>
     {% endif %}
+
+
+
+    <script>
+        function toggleFields() {
+            const fileInput = document.getElementById('file');
+            const urlInput = document.getElementById('url');
+            const submitButton = document.getElementById('submit');
+            const removeImageButton = document.getElementById('removeImageButton');
+            const removeUrlButton = document.getElementById('removeUrlButton');
+
+            if (fileInput.files.length > 0) {
+                urlInput.disabled = true;
+                submitButton.disabled = false;
+                removeImageButton.disabled = false;
+            } else if (urlInput.value.trim() !== "") {
+                fileInput.disabled = true;
+                submitButton.disabled = false;
+                removeUrlButton.disabled = false;
+            } else {
+                fileInput.disabled = false;
+                urlInput.disabled = false;
+                submitButton.disabled = true;
+                removeImageButton.disabled = true;
+                removeUrlButton.disabled = true;
+            }
+        }
+
+        function removeImage() {
+            const fileInput = document.getElementById('file');
+            fileInput.value = '';
+            toggleFields();
+        }
+
+        function removeUrl() {
+            const urlInput = document.getElementById('url');
+            urlInput.value = '';
+            toggleFields();
+        }
+
+        window.addEventListener("DOMContentLoaded", function () {
+        const response = document.querySelector('.response-container');
+        if (response) {
+            response.scrollIntoView({ behavior: 'smooth' });
+        }
+        });
+    </script>
 </body>
 </html>
