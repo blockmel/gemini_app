@@ -11,6 +11,10 @@ from bs4 import BeautifulSoup
 import requests
 from PIL import Image
 import os
+from PIL import ImageDraw
+import io
+import re
+import json
 
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
@@ -28,7 +32,8 @@ credentials = service_account.Credentials.from_service_account_file(CREDENTIALS_
 vertexai.init(project=PROJECT_ID, location=REGION, credentials=credentials)
 
 # Modell initialisieren
-model = GenerativeModel("gemini-2.0-flash-001")
+# model = GenerativeModel("gemini-2.0-flash-001")
+model = GenerativeModel("gemini-2.5-pro")
 
 # FastAPI einrichten
 app = FastAPI()
@@ -66,14 +71,47 @@ def take_screenshot(url):
         with tempfile.TemporaryDirectory() as tmpdirname:
             driver_path = os.path.join(tmpdirname, "chromedriver.exe")
             driver = webdriver.Chrome(options=options)
-            driver.set_window_size(1200, 800)
             driver.get(url)
+            driver.implicitly_wait(10) 
+            # driver.set_window_size(1200, 800)
+            total_height = driver.execute_script("return document.body.scrollHeight")
+            driver.set_window_size(1920, total_height)
             screenshot = driver.get_screenshot_as_png()
             driver.quit()
             return screenshot
     except Exception as e:
         print("Screenshot-Fehler:", e)
         return None
+    
+def mark_problems_on_image(image_data, problems):
+    img = Image.open(io.BytesIO(image_data)).convert("RGBA")
+    draw = ImageDraw.Draw(img)
+
+    for problem in problems:
+        bbox = problem.get("bounding_box")
+        if bbox and len(bbox) == 4:
+            x1, y1, x2, y2 = bbox
+            draw.rectangle([x1, y1, x2, y2], outline="red", width=4)
+
+    output = io.BytesIO()
+    img.save(output, format="PNG")
+    return output.getvalue()
+
+def generate_text_output(response_json):
+    text_output = f"Allgemeines Feedback:\n{response_json.get('general_feedback', '')}\n\n"
+
+    problems = response_json.get("problems", [])
+    if problems:
+        for problem in problems:
+            text_output += f"{problem.get('title', 'Problem')}:\n"
+            text_output += f"Folgendes Problem liegt vor: {problem.get('description', '')}\n"
+            text_output += f"Hier liegt das Problem: {problem.get('location', '')}\n"
+            text_output += f"Aktueller Farbwert: {problem.get('current_color', '')}, Verbesserung: {problem.get('suggested_color', '')}\n\n"
+    else:
+        text_output += "Keine konkreten Farbprobleme gefunden.\n"
+
+    return text_output
+
 
 @app.get("/", response_class=HTMLResponse)
 def form_get(request: Request):
@@ -86,7 +124,28 @@ async def form_post(request: Request, url: str = Form(None), file: UploadFile = 
 
     try:
         if url:
-            contents.append(Part.from_text("Bewerte das Farbkonzept bezüglich WCAG 2.0 und gebe wenn nötig konkrete Farbverbesserungsvorschläge mit Farbwerten. Gebe deine Antwort in folgendem Format ohne weiteren Text. Mache eine Leerzeile nach dem allgemeinen Feedback und nach jedem aufgeführten Problem: Allgemeines Feedback zur Webseite: Gebe hier in maximal 3 kurzen Sätzen ein allgemeines Feedback zum Farbkonzept.; Konkrete Probleme: Gebe hier alle konkreten Probleme im folgendem Format an. Gib jedem Problem die Überschrift Problem “X”. Setze für X die Problem-Nummer ein: Folgendes Problem liegt vor: Benenne hier das Problem.; Hier liegt das Problem: Gebe hier konkret an, wo das Problem vorliegt; Mit folgendem Farbwert kann es verbessert werden: Gebe hier sowohl den aktuellen Farbwert an als auch den Farbwert zur Verbesserung. Gebe dabei nicht mehr als einen Verbesserungsvorschlag an."))
+            prompt = """
+                    Analysiere das Farbkonzept der Webseite gemäß WCAG 2.2 AA und gib das Ergebnis ausschließlich im folgenden JSON-Format zurück. Keine weiteren Erklärungen oder Texte. Schreibe deine Antwort auf Deutsch.
+
+                    {
+                    "general_feedback": "Maximal 3 kurze Sätze allgemeines Feedback zum Farbkonzept.",
+                    "problems": [
+                        {
+                        "title": "Problem X",
+                        "description": "Was ist das Problem?",
+                        "location": "Wo auf der Webseite tritt das Problem auf?",
+                        "current_color": "z.B. #FFFFFF",
+                        "suggested_color": "z.B. #000000",
+                        "bounding_box": [x1, y1, x2, y2]
+                        }
+                    ]
+                    }
+
+                    bounding_box enthält die Koordinaten im Format [x1, y1, x2, y2], wobei (x1, y1) die obere linke Ecke und (x2, y2) die untere rechte Ecke beschreibt. Wenn keine Lokalisierung möglich ist, bleibt bounding_box leer oder null.
+
+                    Wenn keine Probleme existieren, gib eine leere Liste bei "problems" zurück.
+                    """
+            contents.append(Part.from_text(prompt))
             resp = requests.get(url)
             soup = BeautifulSoup(resp.text, "html.parser")
             css_code = extract_css_content(soup, url)
@@ -100,18 +159,57 @@ async def form_post(request: Request, url: str = Form(None), file: UploadFile = 
 
 
         elif file:
-            contents.append(Part.from_text("Analysiere das Bild und bewerte das Farbkonzept bezüglich WCAG 2.0 und gebe wenn nötig konkrete Farbverbesserungsvorschläge mit Farbwerten. Gebe deine Antwort in folgendem Format ohne weiteren Text. Mache eine Leerzeile nach dem allgemeinen Feedback und nach jedem aufgeführten Problem: Allgemeines Feedback zum Bild: Gebe hier in maximal 3 kurzen Sätzen ein allgemeines Feedback zum Farbkonzept.; Konkrete Probleme: Gebe hier alle konkreten Probleme im folgendem Format an. Gib jedem Problem die Überschrift Problem “X”. Setze für X die Problem-Nummer ein: Folgendes Problem liegt vor: Benenne hier das Problem.; Hier liegt das Problem: Gebe hier konkret an, wo das Problem vorliegt; Mit folgendem Farbwert kann es verbessert werden: Gebe hier sowohl den aktuellen Farbwert an als auch den Farbwert zur Verbesserung. Gebe dabei nicht mehr als einen Verbesserungsvorschlag an."))
+            prompt = """
+                    Analysiere das Farbkonzept des Bildes gemäß WCAG 2.2 AA und gib das Ergebnis ausschließlich im folgenden JSON-Format zurück. Keine weiteren Erklärungen oder Texte. Schreibe deine Antwort auf Deutsch.
+
+                    {
+                    "general_feedback": "Maximal 3 kurze Sätze allgemeines Feedback zum Farbkonzept.",
+                    "problems": [
+                        {
+                        "title": "Problem X",
+                        "description": "Was ist das Problem?",
+                        "location": "Wo auf dem Bild tritt das Problem auf?",
+                        "current_color": "z.B. #FFFFFF",
+                        "suggested_color": "z.B. #000000",
+                        "bounding_box": [x1, y1, x2, y2]
+                        }
+                    ]
+                    }
+
+                    Wichtig: Die bounding_box muss immer die genauen Pixelkoordinaten [x1, y1, x2, y2] des *betroffenen Elements* im Bild enthalten, wobei (x1, y1) die obere linke Ecke und (x2, y2) die untere rechte Ecke beschreibt. Sei hierbei so präzise wie möglich und gib die Koordinaten relativ zum gesamten Bild an. Wenn keine genaue Lokalisierung eines Farbproblems möglich ist, setze bounding_box auf null.
+                    Verwende die bounding_box so, dass sie exakt den Bereich um das Element beschreibt, das das Farbproblem verursacht. Markiere möglichst eng am betroffenen Bereich (z. B. nur Text, nicht gesamten Button).
+
+                    Wenn keine Probleme existieren, gib eine leere Liste bei "problems" zurück.
+                    """
+            contents.append(Part.from_text(prompt))
             image_data = await file.read()
             image_part = Part.from_data(data=image_data, mime_type=file.content_type)
             contents.append(image_part)
 
-        response = model.generate_content(contents)
+        response = model.generate_content(contents, generation_config={"temperature": 0.2})
+        
+        print("ROHES RESPONSE:", response.text)
 
-        image_base64 = b64encode(image_data).decode("utf-8") if image_data else None
+        json_string = response.text.strip() # Remove leading/trailing whitespace
+
+        match = re.search(r"\{.*\}", json_string, re.DOTALL)
+        if match:
+            json_string = match.group(0)
+        else:
+            # If no JSON object is found, handle the error or raise an exception
+            print("Error: No JSON object found in response text.")
+            raise ValueError("Model response did not contain a valid JSON object.")
+
+        response_json = json.loads(json_string)
+
+        text_output = generate_text_output(response_json)
+
+        marked_image = mark_problems_on_image(image_data, response_json.get("problems", [])) if image_data else None
+        image_base64 = b64encode(marked_image).decode("utf-8") if marked_image else None
 
         return templates.TemplateResponse("form.html", {
             "request": request,
-            "response": response.text,
+            "response": text_output,
             "image_data": image_base64
         })
 

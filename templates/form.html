@@ -49,9 +49,13 @@
             {% endif %}
 
             <div class="response-text" role="region" aria-label="Analyseergebnis" tabindex="0">
-                {% for paragraph in response.split('\n\n') %}
-                    <p>{{ paragraph | replace('\n', '<br>') | safe }}</p>
-                {% endfor %}
+                {% if response is string %}
+                    {% for paragraph in response.split('\n\n') %}
+                        <p>{{ paragraph | replace('\n', '<br>') | safe }}</p>
+                    {% endfor %}
+                {% else %}
+                    <p>⚠️ Fehler: Antwort ist nicht im erwarteten Format.</p>
+                {% endif %}
             </div>
         </article>
     {% endif %}
