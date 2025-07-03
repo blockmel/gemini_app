@@ -98,17 +98,19 @@ def mark_problems_on_image(image_data, problems):
     return output.getvalue()
 
 def generate_text_output(response_json):
-    text_output = f"Allgemeines Feedback:\n{response_json.get('general_feedback', '')}\n\n"
+    text_output = f"Allgemeines Feedback:{response_json.get('general_feedback', '')}"
 
     problems = response_json.get("problems", [])
     if problems:
+        text_output += "\n\nGefundene Farbkontrast-Probleme:"
         for problem in problems:
+            text_output += "\n\n"
             text_output += f"{problem.get('title', 'Problem')}:\n"
             text_output += f"Folgendes Problem liegt vor: {problem.get('description', '')}\n"
             text_output += f"Hier liegt das Problem: {problem.get('location', '')}\n"
-            text_output += f"Aktueller Farbwert: {problem.get('current_color', '')}, Verbesserung: {problem.get('suggested_color', '')}\n\n"
+            text_output += f"Aktueller Farbwert: {problem.get('current_color', '')}, Verbesserung: {problem.get('suggested_color', '')}"
     else:
-        text_output += "Keine konkreten Farbprobleme gefunden.\n"
+        text_output += "\n\nKeine konkreten Farbprobleme gefunden."
 
     return text_output
 
@@ -124,71 +126,126 @@ async def form_post(request: Request, url: str = Form(None), file: UploadFile = 
 
     try:
         if url:
-            prompt = """
-                    Analysiere das Farbkonzept der Webseite gemäß WCAG 2.2 AA und gib das Ergebnis ausschließlich im folgenden JSON-Format zurück. Keine weiteren Erklärungen oder Texte. Schreibe deine Antwort auf Deutsch.
-
-                    {
-                    "general_feedback": "Maximal 3 kurze Sätze allgemeines Feedback zum Farbkonzept.",
-                    "problems": [
-                        {
-                        "title": "Problem X",
-                        "description": "Was ist das Problem?",
-                        "location": "Wo auf der Webseite tritt das Problem auf?",
-                        "current_color": "z.B. #FFFFFF",
-                        "suggested_color": "z.B. #000000",
-                        "bounding_box": [x1, y1, x2, y2]
-                        }
-                    ]
-                    }
-
-                    bounding_box enthält die Koordinaten im Format [x1, y1, x2, y2], wobei (x1, y1) die obere linke Ecke und (x2, y2) die untere rechte Ecke beschreibt. Wenn keine Lokalisierung möglich ist, bleibt bounding_box leer oder null.
-
-                    Wenn keine Probleme existieren, gib eine leere Liste bei "problems" zurück.
-                    """
-            contents.append(Part.from_text(prompt))
-            resp = requests.get(url)
-            soup = BeautifulSoup(resp.text, "html.parser")
-            css_code = extract_css_content(soup, url)
-            if css_code:
-                contents.append(Part.from_text(f"CSS-Code der Seite:\n{css_code}"))
-            
             screenshot = take_screenshot(url)
             if screenshot:
+                img = Image.open(io.BytesIO(screenshot))
+                width, height = img.size
+                prompt = f"""
+                        Analysiere das Farbkonzept der Webseite gemäß WCAG 2.2 AA und gib das Ergebnis ausschließlich im folgenden JSON-Format zurück. Keine weiteren Erklärungen oder Texte. Schreibe deine Antwort auf Deutsch.
+
+                        Das Bild hat eine Auflösung von {width} Pixel in der Breite und {height} Pixel in der Höhe.
+
+                        {{
+                        "general_feedback": "Maximal 3 kurze Sätze allgemeines Feedback zum Farbkonzept.",
+                        "problems": [
+                            {{
+                            "title": "Problem X",
+                            "description": "Was ist das Problem?",
+                            "location": "Wo auf der Webseite tritt das Problem auf?",
+                            "current_color": "z.B. #FFFFFF",
+                            "suggested_color": "z.B. #000000",
+                            "bounding_box": [x1, y1, x2, y2]
+                            }}
+                        ]
+                        }}
+
+                        Wichtig: Die bounding_box muss die exakten Pixelkoordinaten [x1, y1, x2, y2] angeben, bezogen auf das gesamte Bild. 
+                        - Der Ursprung (0,0) ist die obere linke Ecke des Bildes.
+                        - (x1, y1) ist die obere linke Ecke der Box.
+                        - (x2, y2) ist die untere rechte Ecke der Box.
+                        - Gib die Box so eng wie möglich um das betroffene Element an (z. B. nur um den Text, nicht den ganzen Button oder Bereich).
+
+                        Wenn keine Lokalisierung möglich ist, setze bounding_box auf null.
+
+                        Wenn keine Probleme existieren, gib eine leere Liste bei "problems" zurück.
+                        """
+                contents.append(Part.from_text(prompt))
+                resp = requests.get(url)
+                soup = BeautifulSoup(resp.text, "html.parser")
+                css_code = extract_css_content(soup, url)
+                if css_code:
+                    contents.append(Part.from_text(f"CSS-Code der Seite:\n{css_code}"))
+            
                 contents.append(Part.from_data(data=screenshot, mime_type="image/png"))
                 image_data = screenshot
 
+            else:
+                prompt = """
+                        Analysiere das Farbkonzept der Webseite gemäß WCAG 2.2 AA und gib das Ergebnis ausschließlich im folgenden JSON-Format zurück. Keine weiteren Erklärungen oder Texte. Schreibe deine Antwort auf Deutsch.
+
+                        {
+                        "general_feedback": "Maximal 3 kurze Sätze allgemeines Feedback zum Farbkonzept.",
+                        "problems": [
+                            {
+                            "title": "Problem X",
+                            "description": "Was ist das Problem?",
+                            "location": "Wo auf der Webseite tritt das Problem auf?",
+                            "current_color": "z.B. #FFFFFF",
+                            "suggested_color": "z.B. #000000",
+                            "bounding_box": [x1, y1, x2, y2]
+                            }
+                        ]
+                        }
+
+                        Wichtig: Die bounding_box muss die exakten Pixelkoordinaten [x1, y1, x2, y2] angeben, bezogen auf das gesamte Bild. 
+                        - Der Ursprung (0,0) ist die obere linke Ecke des Bildes.
+                        - (x1, y1) ist die obere linke Ecke der Box.
+                        - (x2, y2) ist die untere rechte Ecke der Box.
+                        - Gib die Box so eng wie möglich um das betroffene Element an (z. B. nur um den Text, nicht den ganzen Button oder Bereich).
+
+                        Wenn keine Lokalisierung möglich ist, setze bounding_box auf null.
+
+                        Wenn keine Probleme existieren, gib eine leere Liste bei "problems" zurück.
+                        """
+                contents.append(Part.from_text(prompt))
+                resp = requests.get(url)
+                soup = BeautifulSoup(resp.text, "html.parser")
+                css_code = extract_css_content(soup, url)
+                if css_code:
+                    contents.append(Part.from_text(f"CSS-Code der Seite:\n{css_code}"))
+
 
         elif file:
-            prompt = """
+            image_data = await file.read()
+            img = Image.open(io.BytesIO(image_data))
+            width, height = img.size
+
+            prompt = f"""
                     Analysiere das Farbkonzept des Bildes gemäß WCAG 2.2 AA und gib das Ergebnis ausschließlich im folgenden JSON-Format zurück. Keine weiteren Erklärungen oder Texte. Schreibe deine Antwort auf Deutsch.
 
-                    {
+                    Das Bild hat eine Auflösung von {width} Pixel in der Breite und {height} Pixel in der Höhe.
+
+                    {{
                     "general_feedback": "Maximal 3 kurze Sätze allgemeines Feedback zum Farbkonzept.",
                     "problems": [
-                        {
+                        {{
                         "title": "Problem X",
                         "description": "Was ist das Problem?",
                         "location": "Wo auf dem Bild tritt das Problem auf?",
                         "current_color": "z.B. #FFFFFF",
                         "suggested_color": "z.B. #000000",
                         "bounding_box": [x1, y1, x2, y2]
-                        }
+                        }}
                     ]
-                    }
+                    }}
 
-                    Wichtig: Die bounding_box muss immer die genauen Pixelkoordinaten [x1, y1, x2, y2] des *betroffenen Elements* im Bild enthalten, wobei (x1, y1) die obere linke Ecke und (x2, y2) die untere rechte Ecke beschreibt. Sei hierbei so präzise wie möglich und gib die Koordinaten relativ zum gesamten Bild an. Wenn keine genaue Lokalisierung eines Farbproblems möglich ist, setze bounding_box auf null.
-                    Verwende die bounding_box so, dass sie exakt den Bereich um das Element beschreibt, das das Farbproblem verursacht. Markiere möglichst eng am betroffenen Bereich (z. B. nur Text, nicht gesamten Button).
+                    Wichtig: Die bounding_box muss die exakten Pixelkoordinaten [x1, y1, x2, y2] angeben, bezogen auf das gesamte Bild. 
+                    - Der Ursprung (0,0) ist die obere linke Ecke des Bildes.
+                    - (x1, y1) ist die obere linke Ecke der Box.
+                    - (x2, y2) ist die untere rechte Ecke der Box.
+                    - Gib die Box so eng wie möglich um das betroffene Element an (z. B. nur um den Text, nicht den ganzen Button oder Bereich).
+
+                    Wenn keine Lokalisierung möglich ist, setze bounding_box auf null.
 
                     Wenn keine Probleme existieren, gib eine leere Liste bei "problems" zurück.
                     """
             contents.append(Part.from_text(prompt))
-            image_data = await file.read()
             image_part = Part.from_data(data=image_data, mime_type=file.content_type)
             contents.append(image_part)
 
         response = model.generate_content(contents, generation_config={"temperature": 0.2})
         
-        print("ROHES RESPONSE:", response.text)
+        print("RESPONSE:", response.text)
 
         json_string = response.text.strip() # Remove leading/trailing whitespace
 
