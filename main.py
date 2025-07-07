@@ -156,6 +156,7 @@ async def form_post(request: Request, url: str = Form(None), file: UploadFile = 
                         - Gib die Box so eng wie möglich um das betroffene Element an (z. B. nur um den Text, nicht den ganzen Button oder Bereich).
 
                         Wenn keine Lokalisierung möglich ist, setze bounding_box auf null.
+                        Fülle das X bei title mit der Problem-Nummerierung aus der Liste der Probleme.
 
                         Wenn keine Probleme existieren, gib eine leere Liste bei "problems" zurück.
                         """
@@ -194,6 +195,7 @@ async def form_post(request: Request, url: str = Form(None), file: UploadFile = 
                         - Gib die Box so eng wie möglich um das betroffene Element an (z. B. nur um den Text, nicht den ganzen Button oder Bereich).
 
                         Wenn keine Lokalisierung möglich ist, setze bounding_box auf null.
+                        Fülle das X bei title mit der Problem-Nummerierung aus der Liste der Probleme.
 
                         Wenn keine Probleme existieren, gib eine leere Liste bei "problems" zurück.
                         """
@@ -236,6 +238,7 @@ async def form_post(request: Request, url: str = Form(None), file: UploadFile = 
                     - Gib die Box so eng wie möglich um das betroffene Element an (z. B. nur um den Text, nicht den ganzen Button oder Bereich).
 
                     Wenn keine Lokalisierung möglich ist, setze bounding_box auf null.
+                    Fülle das X bei title mit der Problem-Nummerierung aus der Liste der Probleme.
 
                     Wenn keine Probleme existieren, gib eine leere Liste bei "problems" zurück.
                     """
