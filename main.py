@@ -69,11 +69,9 @@ def take_screenshot(url):
         options.add_argument("--disable-dev-shm-usage")
 
         with tempfile.TemporaryDirectory() as tmpdirname:
-            driver_path = os.path.join(tmpdirname, "chromedriver.exe")
             driver = webdriver.Chrome(options=options)
             driver.get(url)
             driver.implicitly_wait(10) 
-            # driver.set_window_size(1200, 800)
             total_height = driver.execute_script("return document.body.scrollHeight")
             driver.set_window_size(1920, total_height)
             screenshot = driver.get_screenshot_as_png()
@@ -248,6 +246,7 @@ async def form_post(request: Request, url: str = Form(None), file: UploadFile = 
 
         response = model.generate_content(contents, generation_config={"temperature": 0.2})
         
+        # print for usertests
         print("RESPONSE:", response.text)
 
         json_string = response.text.strip() # Remove leading/trailing whitespace
