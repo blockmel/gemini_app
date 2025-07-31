@@ -49,9 +49,49 @@
             {% endif %}
 
             <div class="response-text" role="region" aria-label="Analyseergebnis" tabindex="0">
-                {% for paragraph in response.split('\n\n') %}
-                    <p>{{ paragraph | replace('\n', '<br>') | safe }}</p>
-                {% endfor %}
+                {% if response is string %}
+                    {% for paragraph in response.split('\n\n') %}
+                        {% if paragraph.strip().startswith('Allgemeines Feedback:') %}
+                            <h3>Allgemeines Feedback:</h3>
+                            <div class="indent">
+                                <p>{{ paragraph[paragraph.find(':') + 1:] | replace('\n', '<br>') | safe }}</p>
+                            </div>
+                        {% elif paragraph.strip().startswith('Gefundene Farbkontrast-Probleme:') %}
+                            <br><h3>Gefundene Farbkontrast-Probleme:</h3>
+                        {% elif paragraph.strip().startswith('Keine konkreten Farbprobleme gefunden.') %}
+                            <p><strong>{{ paragraph | replace('\n', '<br>') | safe }}</strong></p>
+                        {% elif paragraph.strip().startswith('Problem') and ':' in paragraph %}
+                            {% set raw = paragraph.split(':', 1)[1] %}
+                            {% set current = (raw.split('Aktueller Farbwert:')[1].split(',')[0].strip()) if 'Aktueller Farbwert:' in raw else None %}
+                            {% set suggested = (raw.split('Verbesserung:')[1].strip()) if 'Verbesserung:' in raw else None %}
+                            {% set problem_text = raw.split('Hier liegt das Problem:')[0].strip() %}
+                            {% set location_text = raw.split('Hier liegt das Problem:')[1].split('Aktueller Farbwert:')[0].strip() %}
+                            <div class="indent">
+                                <p>
+                                    <strong>{{ paragraph.split(':', 1)[0] }}:</strong><br>
+                                    {{ problem_text }}<br>
+                                    Hier liegt das Problem: {{ location_text }}<br>
+                                    Aktueller Farbwert: 
+                                    <span style="display: inline-flex; align-items: center; gap: 0.3em;">
+                                        <span style="width: 0.9em; height: 0.9em; border-radius: 50%; background-color: {{ current }}; border: 1px solid #000;"></span>
+                                        <span>{{ current }}</span>
+                                    </span>, 
+                                    Verbesserung: 
+                                    <span style="display: inline-flex; align-items: center; gap: 0.3em;">
+                                        <span style="width: 0.9em; height: 0.9em; border-radius: 50%; background-color: {{ suggested }}; border: 1px solid #000;"></span>
+                                        <span>{{ suggested }}</span>
+                                    </span>
+                                </p>
+                            </div>
+                        {% else %}
+                            <div class="indent">
+                                <p>{{ paragraph | replace('\n', '<br>') | safe }}</p>
+                            </div>
+                        {% endif %}
+                    {% endfor %}
+                {% else %}
+                    <p>Fehler: Antwort ist nicht im erwarteten Format.</p>
+                {% endif %}
             </div>
         </article>
     {% endif %}
@@ -96,10 +136,25 @@
         }
 
         window.addEventListener("DOMContentLoaded", function () {
-        const response = document.querySelector('.response-container');
-        if (response) {
-            response.scrollIntoView({ behavior: 'smooth' });
-        }
+            const response = document.querySelector('.response-container');
+            if (response) {
+                response.scrollIntoView({ behavior: 'smooth' });
+            }
+
+            document.querySelector("form").addEventListener("submit", function () {
+                const responseContainer = document.querySelector(".response-container");
+                if (responseContainer) {
+                    responseContainer.remove();
+                }
+
+                const submitButton = document.getElementById("submit");
+                const removeImageButton = document.getElementById('removeImageButton');
+                const removeUrlButton = document.getElementById('removeUrlButton');
+                submitButton.disabled = true;
+                submitButton.value = "Wird verarbeitet...";
+                removeImageButton.disabled = true;
+                removeUrlButton.disabled = true;
+            });
         });
     </script>
 </body>
